@@ -1,7 +1,8 @@
 name: Sync upstream
 
 # 定时把上游 hotier/MediaGet 的 main 合并进本 fork；
-# 有更新时 push 到 main，进而触发 deploy-cloudflare.yaml 自动部署。
+# 有更新时 push 到 main，并显式触发 deploy-cloudflare.yaml 部署。
+# 用 workflow_dispatch 触发部署，因为 GITHUB_TOKEN 的 push 不会触发其它 workflow。
 on:
   schedule:
     - cron: '0 */6 * * *' # 每 6 小时检查一次
@@ -9,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sync-upstream
@@ -36,11 +38,25 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git checkout main
+          BEFORE=$(git rev-parse HEAD)
           if git merge --no-edit upstream/main; then
-            git push origin main
-            echo "Merged upstream and pushed."
+            AFTER=$(git rev-parse HEAD)
+            if [ "$BEFORE" != "$AFTER" ]; then
+              git push origin main
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "Merged upstream and pushed ($BEFORE -> $AFTER)."
+            else
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "Already up to date."
+            fi
           else
             echo "Merge conflict detected; please resolve manually."
             git merge --abort
             exit 1
           fi
+
+      - name: Trigger deployment
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy-cloudflare.yaml --ref main
