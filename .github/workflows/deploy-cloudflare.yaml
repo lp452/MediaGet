@@ -1,13 +1,12 @@
 name: Deploy to Cloudflare Workers
 
-# 手动触发，只负责发布。构建校验已并入 ci.yaml（npm run build:cf），本工作流不再提供只构建模式。
-# 所需仓库 Secrets：
-#   CF_API_TOKEN   —— Cloudflare API Token，权限 Workers Scripts:Edit（+ 账户读）
-#   CF_ACCOUNT_ID  —— Cloudflare 账户 ID
-# 运行时变量/密钥（Cookie、Turso、SETTINGS_API_KEY 等）用 `npx wrangler secret put <NAME>`
-# 或 Dashboard 注入，不经过本工作流。
+# 发布工作流：push 到 main 自动部署，也保留手动触发。
+# 上游同步（sync-upstream.yaml）合并后 push 到 main 会自动触发本工作流。
+# 所需仓库 Secrets：CF_API_TOKEN、CF_ACCOUNT_ID。
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -28,7 +27,6 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # Node 22 自带 npm 10（锁文件按此生成）
           node-version: 22
           cache: "npm"
 
