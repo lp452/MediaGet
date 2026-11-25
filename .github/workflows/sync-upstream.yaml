@@ -1,0 +1,46 @@
+name: Sync upstream
+
+# 定时把上游 hotier/MediaGet 的 main 合并进本 fork；
+# 有更新时 push 到 main，进而触发 deploy-cloudflare.yaml 自动部署。
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时检查一次
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync fork with upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/hotier/MediaGet.git
+          git fetch upstream main
+
+      - name: Merge upstream into main
+        id: merge
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout main
+          if git merge --no-edit upstream/main; then
+            git push origin main
+            echo "Merged upstream and pushed."
+          else
+            echo "Merge conflict detected; please resolve manually."
+            git merge --abort
+            exit 1
+          fi
